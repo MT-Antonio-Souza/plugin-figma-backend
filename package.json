@@ -1,0 +1,21 @@
+{
+  "name": "plugin-figma-backend",
+  "version": "1.0.0",
+  "description": "Backend para o plugin de análise de copy do Figma",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MT-Antonio-Souza/plugin-figma-backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/MT-Antonio-Souza/plugin-figma-backend/issues"
+  },
+  "homepage": "https://github.com/MT-Antonio-Souza/plugin-figma-backend#readme"
+}
