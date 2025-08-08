@@ -11,7 +11,9 @@
       "Bash(git push:*)",
       "Bash(ssh:*)",
       "Bash(cat:*)",
-      "Bash(git remote remove:*)"
+      "Bash(git remote remove:*)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:cookbook.openai.com)"
     ],
     "deny": []
   }

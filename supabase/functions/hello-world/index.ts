@@ -1,3 +1,27 @@
+/*
+ * FUNÇÃO SUPABASE EDGE: ANÁLISE DE UI COM GPT-5
+ * 
+ * Esta função foi atualizada para total compatibilidade com a API GPT-5 da OpenAI.
+ * 
+ * PRINCIPAIS MUDANÇAS PARA GPT-5:
+ * - max_tokens → max_completion_tokens (novo parâmetro oficial)
+ * - Adicionado reasoning_effort: controla nível de raciocínio ('minimal', 'low', 'medium', 'high')
+ * - Adicionado verbosity: controla detalhamento da resposta ('low', 'medium', 'high')
+ * - REMOVIDO temperature: GPT-5 só aceita valor padrão (1), controle via reasoning_effort
+ * - Mantida compatibilidade com Chat Completions API (recomendada para chamadas únicas)
+ * 
+ * CUSTOS GPT-5 (2025):
+ * - gpt-5: $1.25/1M input tokens, $10/1M output tokens
+ * - gpt-5-mini: $0.25/1M input tokens, $2/1M output tokens  
+ * - gpt-5-nano: $0.05/1M input tokens, $0.40/1M output tokens
+ * 
+ * FUNCIONALIDADE:
+ * - Recebe contexto e imagem via POST
+ * - Busca configurações dinâmicas no Supabase (modelo IA + prompt template + manual da marca)
+ * - Envia para GPT-5 com análise de imagem
+ * - Retorna análise estruturada em JSON
+ */
+
 // Importa a função serve da biblioteca padrão do Deno para criar um servidor HTTP
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
@@ -5,6 +29,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // Importa a biblioteca da OpenAI para fazer chamadas à API
+// ATUALIZADO: OpenAI v4+ com suporte completo aos novos parâmetros do GPT-5
 import OpenAI from 'https://esm.sh/openai@4'
 
 // Define a interface para o corpo da requisição que esperamos receber
@@ -170,57 +195,167 @@ serve(async (req: Request) => {
     // Prepara o conteúdo da imagem para envio à OpenAI
     let imageContent: any
     
+    console.log('Tipo de imagem recebida:', requestBody.imageType)
+    console.log('Primeiros 100 caracteres da imagem:', requestBody.image.substring(0, 100))
+    
     if (requestBody.imageType === 'url' || requestBody.image.startsWith('http')) {
       // Se for URL da imagem
+      console.log('Processando imagem como URL')
       imageContent = {
         type: "image_url",
         image_url: {
-          url: requestBody.image
+          url: requestBody.image,
+          // GPT-5: Adiciona configuração de detalhe para melhor análise de UI
+          detail: "high"
         }
       }
     } else {
       // Se for base64 (padrão)
-      const base64Image = requestBody.image.startsWith('data:') ? requestBody.image : `data:image/jpeg;base64,${requestBody.image}`
+      console.log('Processando imagem como base64')
+      
+      // Valida e prepara o formato base64 correto
+      let base64Image: string;
+      
+      if (requestBody.image.startsWith('data:')) {
+        // Já tem o prefixo data URI
+        base64Image = requestBody.image
+      } else {
+        // Adiciona prefixo data URI apropriado
+        // GPT-5 suporta jpeg, png, gif, webp
+        const imageFormat = requestBody.imageType || 'jpeg'
+        base64Image = `data:image/${imageFormat};base64,${requestBody.image}`
+      }
+      
+      console.log('Base64 formatado (primeiros 100 chars):', base64Image.substring(0, 100))
+      
       imageContent = {
         type: "image_url",
         image_url: {
-          url: base64Image
+          url: base64Image,
+          // GPT-5: Configura detalhe alto para melhor análise de UI
+          detail: "high"
         }
       }
     }
+    
+    console.log('Estrutura final da imagem para OpenAI:', {
+      type: imageContent.type,
+      hasUrl: !!imageContent.image_url?.url,
+      detail: imageContent.image_url?.detail,
+      urlPrefix: imageContent.image_url?.url?.substring(0, 50) + '...'
+    })
 
     // === CHAMADA À API DA OPENAI ===
     
-    // Faz a chamada para a API da OpenAI usando as configurações obtidas do banco
-    const completion = await openai.chat.completions.create({
-      model: aiConfig.model_name, // Usa o modelo especificado no banco (ex: "gpt-4o" para suporte a imagem)
-      messages: [
+    let completion;
+    try {
+      // Faz a chamada para a API da OpenAI usando as configurações obtidas do banco
+      completion = await openai.chat.completions.create({
+        model: aiConfig.model_name, // Usa o modelo especificado no banco (ex: "gpt-5-mini" para GPT-5)
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: finalPrompt // Envia o prompt montado dinamicamente
+              },
+              imageContent // Adiciona a imagem ao conteúdo da mensagem
+            ]
+          }
+        ],
+        // Força a resposta a ser em formato JSON válido
+        response_format: { type: "json_object" },
+        // GPT-5: temperature removido - apenas o valor padrão (1) é suportado pelo GPT-5
+        // ANTERIOR: temperature: 0.7 (não suportado pelo GPT-5)
+        // ATUAL: usar valor padrão do modelo (controle de determinismo agora via reasoning_effort)
+        
+        // === PARÂMETROS ATUALIZADOS PARA GPT-5 ===
+        
+        // GPT-5: Parâmetro de limite de tokens atualizado
+        // ANTERIOR: max_tokens (descontinuado para GPT-5)
+        // ATUAL: max_completion_tokens - controla tokens de resposta (máx: 128k para GPT-5)
+        // AUMENTADO: 2048 → 4096 para permitir análises JSON completas e detalhadas
+        max_completion_tokens: 8192,
+        
+        // GPT-5: Novo parâmetro para controle de raciocínio
+        // 'minimal' = resposta rápida, pouco raciocínio (ideal para tarefas simples)
+        // 'low'     = raciocínio básico (bom custo-benefício)
+        // 'medium'  = raciocínio balanceado (padrão recomendado para análise de UI)
+        // 'high'    = raciocínio profundo (para tarefas muito complexas)
+        reasoning_effort: "medium",
+        
+        // GPT-5: Novo parâmetro para controle de verbosidade
+        // 'low'    = respostas concisas e diretas
+        // 'medium' = nível de detalhe equilibrado (padrão)
+        // 'high'   = respostas detalhadas e abrangentes
+        verbosity: "medium"
+      })
+    } catch (openaiError) {
+      // === TRATAMENTO ESPECÍFICO DE ERROS DA OPENAI ===
+      
+      console.error('--- ERRO DETALHADO DA OPENAI ---:', openaiError)
+      console.error('--- ERRO OBJETO COMPLETO ---:', JSON.stringify(openaiError, null, 2))
+      console.error('--- CONFIGURAÇÃO ENVIADA ---:', {
+        model: aiConfig.model_name,
+        max_completion_tokens: 2048,
+        reasoning_effort: "medium",
+        verbosity: "medium",
+        imageContentType: imageContent.type
+      })
+      
+      return new Response(
+        JSON.stringify({
+          error: "A chamada para a OpenAI falhou",
+          details: openaiError.message || "Erro desconhecido da OpenAI",
+          openai_error_type: openaiError.type || "unknown",
+          model_used: aiConfig.model_name,
+          timestamp: new Date().toISOString()
+        }),
         {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: finalPrompt // Envia o prompt montado dinamicamente
-            },
-            imageContent // Adiciona a imagem ao conteúdo da mensagem
-          ]
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
         }
-      ],
-      // Força a resposta a ser em formato JSON válido
-      response_format: { type: "json_object" },
-      temperature: 0.7, // Controla a criatividade da resposta (0.0 = mais determinístico, 1.0 = mais criativo)
-      max_tokens: 1500  // Limita o tamanho da resposta
-    })
+      )
+    }
 
     // Extrai a resposta da OpenAI
     const analysisResult = completion.choices[0]?.message?.content
 
+    // Log da estrutura de resposta da OpenAI para debug
+    console.log('--- RESPOSTA COMPLETA DA OPENAI ---:', JSON.stringify(completion, null, 2))
+    console.log('--- ANÁLISE RESULT ---:', analysisResult)
+    console.log('--- CHOICES DISPONÍVEIS ---:', completion.choices?.length || 0)
+    console.log('--- PRIMEIRO CHOICE ---:', completion.choices[0] ? JSON.stringify(completion.choices[0], null, 2) : 'undefined')
+
     // Verifica se a OpenAI retornou uma resposta válida
     if (!analysisResult) {
+      console.error('--- RESPOSTA VAZIA DA OPENAI ---')
+      console.error('Completion object:', completion)
+      console.error('Choices array:', completion.choices)
+      console.error('First choice:', completion.choices?.[0])
+      console.error('Message:', completion.choices?.[0]?.message)
+      
       return new Response(
         JSON.stringify({
           error: "Erro na análise da IA",
-          message: "A OpenAI não retornou uma resposta válida"
+          message: "A OpenAI não retornou uma resposta válida",
+          details: {
+            has_choices: !!completion.choices && completion.choices.length > 0,
+            choices_count: completion.choices?.length || 0,
+            first_choice_exists: !!completion.choices?.[0],
+            message_exists: !!completion.choices?.[0]?.message,
+            content_exists: !!completion.choices?.[0]?.message?.content,
+            finish_reason: completion.choices?.[0]?.finish_reason || "unknown"
+          },
+          debug_completion: {
+            id: completion.id,
+            model: completion.model,
+            usage: completion.usage
+          }
         }),
         {
           status: 500,
@@ -270,13 +405,34 @@ serve(async (req: Request) => {
     // === TRATAMENTO DE ERROS GERAIS ===
     
     // Em caso de qualquer erro não tratado anteriormente
-    console.error('Erro geral na função:', error)
+    console.error('--- ERRO GERAL NA FUNÇÃO ---:', error)
+    console.error('--- STACK TRACE ---:', error.stack)
+    console.error('--- ERRO TIPO ---:', typeof error)
+    console.error('--- ERRO NOME ---:', error.name)
+    
+    // Determina se é erro de rede, parse, ou outro
+    let errorType = "unknown"
+    let errorDetails = error.message || "Erro desconhecido"
+    
+    if (error.name === 'TypeError') {
+      errorType = "network_or_parse_error"
+    } else if (error.message?.includes('JSON')) {
+      errorType = "json_parse_error"  
+    } else if (error.message?.includes('fetch')) {
+      errorType = "network_error"
+    }
     
     return new Response(
       JSON.stringify({
         error: "Erro interno do servidor",
-        message: error.message,
-        timestamp: new Date().toISOString()
+        message: errorDetails,
+        error_type: errorType,
+        error_name: error.name,
+        timestamp: new Date().toISOString(),
+        // Em desenvolvimento, inclua mais detalhes
+        debug_info: {
+          stack: error.stack?.split('\n').slice(0, 5) // Primeiras 5 linhas do stack
+        }
       }),
       {
         status: 500, // Status 500 = Erro Interno do Servidor
