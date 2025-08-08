@@ -6,7 +6,12 @@
       "Bash(rm:*)",
       "Bash(supabase functions:*)",
       "Bash(wsl.exe:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(ssh:*)",
+      "Bash(cat:*)",
+      "Bash(git remote remove:*)"
     ],
     "deny": []
   }

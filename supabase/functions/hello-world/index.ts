@@ -9,8 +9,9 @@ import OpenAI from 'https://esm.sh/openai@4'
 
 // Define a interface para o corpo da requisição que esperamos receber
 interface RequestBody {
-  textToAnalyze: string;  // Texto que será analisado pela IA
-  textContext: string;    // Contexto adicional para a análise
+  context: string;        // Contexto fornecido pelo usuário
+  image: string;          // Imagem em base64 ou URL da imagem
+  imageType?: string;     // Tipo da imagem (opcional: 'base64' ou 'url')
 }
 
 // Define a interface para os dados da configuração da IA no banco
@@ -79,11 +80,11 @@ serve(async (req: Request) => {
     const requestBody: RequestBody = await req.json()
     
     // Verifica se os campos obrigatórios estão presentes
-    if (!requestBody.textToAnalyze || !requestBody.textContext) {
+    if (!requestBody.context || !requestBody.image) {
       return new Response(
         JSON.stringify({
           error: "Parâmetros obrigatórios ausentes",
-          message: "Os campos 'textToAnalyze' e 'textContext' são obrigatórios"
+          message: "Os campos 'context' e 'image' são obrigatórios"
         }),
         {
           status: 400, // Status 400 = Bad Request
@@ -158,22 +159,51 @@ serve(async (req: Request) => {
     // Substitui os placeholders no template do prompt pelos dados reais
     // Os placeholders seguem o formato {{NOME_DO_PLACEHOLDER}}
     let finalPrompt = aiConfig.prompt_template
-      .replace('{{TEXT_TO_ANALYZE}}', requestBody.textToAnalyze)        // Substitui o texto a ser analisado
-      .replace('{{TEXT_CONTEXT}}', requestBody.textContext)            // Substitui o contexto do texto
+      .replace('{{CONTEXT}}', requestBody.context)                     // Substitui o contexto fornecido
       .replace('{{VOICE_PRINCIPLES}}', brandManual.voice_principles)   // Substitui os princípios da voz
       .replace('{{RULES}}', brandManual.rules)                        // Substitui as regras da marca
 
     console.log('Prompt final montado:', finalPrompt.substring(0, 200) + '...')
+    
+    // === PREPARAÇÃO DA IMAGEM ===
+    
+    // Prepara o conteúdo da imagem para envio à OpenAI
+    let imageContent: any
+    
+    if (requestBody.imageType === 'url' || requestBody.image.startsWith('http')) {
+      // Se for URL da imagem
+      imageContent = {
+        type: "image_url",
+        image_url: {
+          url: requestBody.image
+        }
+      }
+    } else {
+      // Se for base64 (padrão)
+      const base64Image = requestBody.image.startsWith('data:') ? requestBody.image : `data:image/jpeg;base64,${requestBody.image}`
+      imageContent = {
+        type: "image_url",
+        image_url: {
+          url: base64Image
+        }
+      }
+    }
 
     // === CHAMADA À API DA OPENAI ===
     
     // Faz a chamada para a API da OpenAI usando as configurações obtidas do banco
     const completion = await openai.chat.completions.create({
-      model: aiConfig.model_name, // Usa o modelo especificado no banco (ex: "gpt-4o-mini")
+      model: aiConfig.model_name, // Usa o modelo especificado no banco (ex: "gpt-4o" para suporte a imagem)
       messages: [
         {
           role: "user",
-          content: finalPrompt // Envia o prompt montado dinamicamente
+          content: [
+            {
+              type: "text",
+              text: finalPrompt // Envia o prompt montado dinamicamente
+            },
+            imageContent // Adiciona a imagem ao conteúdo da mensagem
+          ]
         }
       ],
       // Força a resposta a ser em formato JSON válido
