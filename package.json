@@ -17,5 +17,9 @@
   "bugs": {
     "url": "https://github.com/MT-Antonio-Souza/plugin-figma-backend/issues"
   },
-  "homepage": "https://github.com/MT-Antonio-Souza/plugin-figma-backend#readme"
+  "homepage": "https://github.com/MT-Antonio-Souza/plugin-figma-backend#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.54.0",
+    "openai": "^5.12.2"
+  }
 }

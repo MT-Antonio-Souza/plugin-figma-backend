@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npm init:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(supabase functions:*)",
+      "Bash(wsl.exe:*)",
+      "Bash(npm install:*)"
     ],
     "deny": []
   }
