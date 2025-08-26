@@ -18,7 +18,7 @@ export const ANALYSIS_SCHEMA = {
     "jobToBeDone": {
       "type": "object",
       "properties": {
-        "placeholderExemplo": {
+        "texto": {
           "type": "string"
         },
         "avaliacao": {
@@ -40,7 +40,7 @@ export const ANALYSIS_SCHEMA = {
           "required": ["atinge", "justificativa"]
         }
       },
-      "required": ["placeholderExemplo", "avaliacao"]
+      "required": ["texto", "avaliacao"]
     },
     "tomDeVoz": {
       "type": "object",
