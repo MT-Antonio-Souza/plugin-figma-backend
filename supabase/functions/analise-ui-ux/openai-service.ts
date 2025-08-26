@@ -82,20 +82,27 @@ export class OpenAIService {
 
   buildCompletionParams(
     schema: any, 
-    prompt: string, 
+    systemPrompt: string,
+    userPrompt: string, 
     imageContent: ImageContent, 
     apiParams: AIConfig['api_parameters']
   ): CompletionParams {
     // Always use V6 configuration with JSON schema
     return {
       model: V2_CONFIG.MODEL, // Using gpt-5-mini for V6
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: prompt },
-          imageContent
-        ]
-      }],
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userPrompt },
+            imageContent
+          ]
+        }
+      ],
       response_format: {
         type: "json_schema",
         json_schema: { name: "analise_ui_ux_v6", schema }

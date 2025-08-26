@@ -35,7 +35,7 @@ class DatabaseService {
   async getAIConfig(): Promise<{ data: AIConfig | null; error: any }> {
     return await this.supabase
       .from('ai_configs')
-      .select('prompt_template, api_parameters')
+      .select('system_prompt, prompt_template, api_parameters')
       .single();
   }
 
@@ -86,7 +86,8 @@ class AnalysisService {
       // Step 5: Call OpenAI
       await sendProgressUpdate(this.writer, 'api', 'Analisando com IA...');
       const completionParams = this.openai.buildCompletionParams(
-        ANALYSIS_SCHEMA, 
+        ANALYSIS_SCHEMA,
+        aiConfig.system_prompt,
         finalPrompt, 
         imageContent, 
         aiConfig.api_parameters

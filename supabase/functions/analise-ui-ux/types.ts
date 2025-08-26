@@ -8,6 +8,7 @@ export interface RequestBody {
 }
 
 export interface AIConfig {
+  system_prompt: string;
   prompt_template: string;
   api_parameters: {
     model: string;
