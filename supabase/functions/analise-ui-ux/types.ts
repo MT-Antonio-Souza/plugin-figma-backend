@@ -2,6 +2,7 @@
 
 export interface RequestBody {
   context: string;
+  jtbd: string;
   image: string;
   imageType?: string;
 }

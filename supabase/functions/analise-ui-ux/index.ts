@@ -146,6 +146,7 @@ class AnalysisService {
   private buildPrompt(aiConfig: AIConfig, brandManual: BrandManual, requestBody: RequestBody): string {
     return aiConfig.prompt_template
       .replace('{{CONTEXT}}', requestBody.context)
+      .replace('{{JTBD}}', requestBody.jtbd)
       .replace('{{VOICE_PRINCIPLES}}', brandManual.voice_principles)
       .replace('{{RULES}}', brandManual.rules);
   }
@@ -202,10 +203,10 @@ class RequestHandler {
 
       // Validate request body
       const requestBody: RequestBody = await req.json();
-      if (!requestBody.context || !requestBody.image) {
+      if (!requestBody.context || !requestBody.jtbd || !requestBody.image) {
         await sendErrorResponse(writer, {
           error: "Parâmetros obrigatórios ausentes",
-          message: "Os campos 'context' e 'image' são obrigatórios"
+          message: "Os campos 'context', 'jtbd' e 'image' são obrigatórios"
         });
         return;
       }
